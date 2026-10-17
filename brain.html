@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AURA Knowledge</title>
+<style>body{max-width:850px;margin:40px auto;padding:0 22px;background:#101821;color:#e1edf5;font:16px system-ui}a{color:#76dbed}section{background:#192735;padding:24px;border:1px solid #344958;border-radius:18px;margin:20px 0}button,input{padding:10px;margin:5px 0;border-radius:8px}button{cursor:pointer;background:#a6ebed;color:#102c34;border:0}input{max-width:95%}#query{width:95%}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#101821;padding:16px;border-radius:10px}.row{padding:14px 0;border-bottom:1px solid #344958}small{color:#adc2cf}.error{color:#ffb8af}</style></head>
+<body><a href="/">← AURA voice and avatar</a><h1>AURA • Knowledge library</h1>
+<p>Add your notes, then ask about them in AURA's usual chat or voice interface.</p>
+<section><h2>Import a document</h2><p>PDF, UTF-8 TXT or Markdown • 10 MB maximum • text PDFs up to 300 pages</p><input id="file" type="file" accept=".pdf,.txt,.md"><br><button id="upload">Import into knowledge</button>
+<p><small>Extracted text stays in a local database. When you ask AURA a question, relevant passages may be sent to Groq with your question. Import does not train the model. Scanned PDFs need OCR first.</small></p><p id="notice" role="status"></p></section>
+<section><h2>Saved documents</h2><div id="docs"></div><button id="refresh">Refresh list</button></section>
+<section><h2>Test retrieval</h2><p>Keyword search: use words that appear in your notes. This preview makes no AI API request.</p><input id="query" placeholder="e.g. database normalization"><button id="search">Find passages</button><div id="results"></div></section>
+<p><small>This version has general model knowledge + saved preferences + local document retrieval. No live web research or automatic fact checking.</small></p>
+<script>
+const TOKEN='__TOKEN__';
+const notice=document.getElementById('notice');
+async function call(path, options={}){
+ const response=await fetch(path,{...options,headers:{'X-Aura-Token':TOKEN,...(options.headers||{})}});
+ const data=await response.json();if(!response.ok)throw new Error(data.detail||'Operation failed');return data;
+}
+function error(e){notice.className='error';notice.textContent=e.message;}
+async function refresh(){
+ const data=await call('/api/brain/documents');const root=document.getElementById('docs');root.replaceChildren();
+ if(!data.documents.length)root.textContent='No documents yet.';
+ for(const doc of data.documents){
+  const row=document.createElement('div');row.className='row';
+  const label=document.createElement('span');label.textContent=doc.name+' • '+doc.pages+' page(s) ';row.append(label);
+  const button=document.createElement('button');button.textContent='Delete';button.onclick=async()=>{
+   if(!confirm('Delete knowledge for '+doc.name+'?'))return;
+   try{await call('/api/brain/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:doc.id})});document.getElementById('results').replaceChildren();await refresh();}catch(e){error(e);}
+  };row.append(button);root.append(row);
+ }
+}
+document.getElementById('upload').onclick=async()=>{
+ const file=document.getElementById('file').files[0];if(!file){error(new Error('Choose a file.'));return;}
+ if(file.size>10*1024*1024){error(new Error('File exceeds 10 MB.'));return;}
+ const button=document.getElementById('upload');button.disabled=true;notice.className='';notice.textContent='Importing…';
+ try{const form=new FormData();form.append('file',file);const data=await call('/api/brain/import',{method:'POST',body:form});notice.textContent=data.duplicate?'Already imported.':'Imported '+data.name+' • '+data.chunks+' passages';await refresh();}catch(e){error(e);}finally{button.disabled=false;}
+};
+document.getElementById('refresh').onclick=()=>refresh().catch(error);
+document.getElementById('search').onclick=async()=>{
+ try{const data=await call('/api/brain/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:document.getElementById('query').value})});
+ const root=document.getElementById('results');root.replaceChildren();if(!data.passages.length)root.textContent='No matching passage. Try specific words from the document.';
+ for(const item of data.passages){const box=document.createElement('pre');box.textContent='['+item.source+', p.'+item.page+']\n'+item.text;root.append(box);}
+ }catch(e){error(e);}
+};refresh().catch(error);
+</script></body></html>

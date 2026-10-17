@@ -1,0 +1,135 @@
+AURA WORKSPACE UPGRADE — software only; Phase 4C remains on hold
+
+GITHUB CHECKOUT
+This guide also preserves the original upgrade workflow below for existing
+installations. For a fresh GitHub checkout, use README.md: create .venv,
+install requirements.txt, and run start_aura_workspace.cmd. The consolidated
+checkout already contains the upgrade; install_workspace.py is not needed.
+
+INSTALL (Windows CMD)
+1. Download AURA_Workspace_Upgrade.zip into Downloads.
+2. Stop the current AURA server with Ctrl+C in its CMD window.
+3. Open CMD and run:
+
+cd /d "%USERPROFILE%\aura-assistant"
+powershell -NoProfile -Command "Expand-Archive -LiteralPath ($env:USERPROFILE + '\Downloads\AURA_Workspace_Upgrade.zip') -DestinationPath (Get-Location).Path -Force"
+.venv\Scripts\python.exe install_workspace.py
+start_aura_workspace.cmd
+
+Open http://127.0.0.1:8511/workspace if your browser does not open automatically.
+The existing working Phase 4B AURA folder and its .venv are prerequisites.
+No pip/npm installs, local-model downloads, hardware setup or API keys are included.
+The installer stages changes, runs new and existing Python checks, backs up changed
+files under aura_workspace_backups, and rolls back if replacing live files fails.
+If checks fail, keep the error text: no live code is replaced at that stage.
+Existing chat, camera/body and document pages remain linked from the dashboard.
+Use the workspace launcher: starting only the older chat launcher does not attach
+body/workspace endpoints.
+
+FEATURES AND THEIR EXACT SCOPE
+1. Goal memory: persistent project, goal, next action, due date and status records.
+   Workspace AI includes saved facts and active goals as reference data. It does
+   not automatically extract personal facts from your old conversations.
+2. Daily dashboard: active goals, unfinished plans, documents, cloud configuration,
+   local file location and server connection status. Refresh updates the view.
+3. Long-task planner: AI draft or manual decomposition; reviewed manual, document
+   notes, AI and new-file steps; one explicit advance per bounded step. State,
+   results and errors are checkpointed in SQLite. Restart pauses interrupted work;
+   review effects before Retry or Mark resolved. No arbitrary shell task steps.
+4. Document workspace: choose 1–6 already imported PDFs/TXT/MD; offline cited
+   excerpts, AI summaries/comparisons and document-based practice quizzes. Balanced
+   selection uses at most 5 chunks per document, and coverage is displayed. A
+   summary is not a full-PDF audit. Scan-only PDFs need separate OCR.
+5. Screen understanding: explicitly select PNG/JPEG below 4 MB and click Send &
+   analyze. The image is sent to the chosen Groq vision model and not saved by
+   this code. No silent screen capture. Preview and Clear operate locally.
+6. Desktop actions: fixed absolute Windows executables for Notepad/Calculator.
+   Files can be created/read only under workspace_files, using supported text
+   formats. Traversal, Windows device names, symlinks/junctions and overwriting
+   through Create are blocked. This does not automate arbitrary app UI.
+7. Offline fallback: goals, facts, manual/file/notes steps, cited excerpts, saved
+   quizzes, syntax checks, reviewed tests and patches do not need internet. AI
+   replies additionally require an already installed/running Ollama model; click
+   Check local models and select its exact name. Nothing downloads a model.
+8. Better avatar: procedural full-body joint hierarchy, idle/wave/walk/dance and
+   Windows System.Speech viseme-driven mouth shapes. Visemes are produced by the
+   selected installed voice; amplitude fallback is explicitly displayed if none
+   arrive. This is a robot avatar, not a photoreal human or biomechanical gait.
+   Three.js loads from a pinned CDN, so first 3D load needs internet/WebGL2. The
+   local tools and speech endpoint are independent of that CDN. No rigged human
+   asset or new TTS model is supplied.
+9. Coding assistant: AI diagnosis of selected workspace Python files; syntax
+   compilation without execution; diff proposals, explicit apply, original-source
+   backup and hash-guarded rollback. Optional reviewed unittest execution copies
+   candidate.py and test_candidate.py into a temporary folder and invokes a
+   separate Python process. Main-process timeout 15 seconds; output capped 64 KB.
+   This is NOT an OS security sandbox: tests have your user-account permissions,
+   and timeout is not a guarantee for child processes created by reviewed code.
+   Parent environment keys are not inherited. Review source and tests first;
+   generated tests are never automatically executed. Normal tests use stdlib;
+   third-party packages already in your existing venv may be available.
+10. Learning: topic-based generated MCQs, document MCQs, saved/imported JSON quiz
+    practice, answer explanations, attempt history and weak-topic tracking below
+    70% practice accuracy. Generated questions need checking; they are not official
+    GATE or placement questions. An offline example quiz is in examples/quiz.json.
+11. Memory controls: inspect/edit/delete saved workspace goals and facts; export
+    workspace records to JSON. Old chat history/document memory retain their own
+    existing controls. Export can include quiz solutions and patch source backups.
+    Deleting a workspace fact removes its record, not copies in old chat/exports.
+12. Performance: actual workspace model latency, success/failure, model names and
+    returned token usage. Unknown usage remains unknown; no invented cost or
+    accuracy. Import camera evaluation v1 JSON to compare measured summaries;
+    use equivalent scenes, class scope and thresholds. Existing chat/API calls
+    outside the new workspace are not included in these telemetry totals.
+
+FIRST WALKTHROUGH
+- Goals & memory: save a project goal and a fact, restart AURA and verify both.
+- Overview -> Ask: set your session Groq key through the existing Voice & chat
+  page first, or choose Local Ollama and an already installed model.
+- Task planner: type a title, draft/edit steps and Create manual plan. Advance
+  waits for your confirmation on manual steps; restart and resume the plan.
+- Documents: import through the linked document page, Refresh, select documents,
+  then choose Offline cited excerpts. AI options use your selected provider.
+- Learning: import examples/quiz.json, answer and submit; review weak topics.
+- Desktop & files: create demo.py containing:
+    def add(a, b):
+        return a + b
+  Coding -> select demo.py -> Load source -> Syntax check. The provided example
+  tests call candidate.add. Review the source/tests and enable execution to run.
+  Change the return expression, propose a patch, inspect its diff, apply and
+  rollback. A stale patch/rollback refuses to overwrite a later file edit.
+- Avatar: Wave/Dance, then Speak. Installed Windows voices are listed when
+  available. Check the reported sync mode and Stop behavior on your laptop.
+- Screen: choose a harmless screenshot, verify preview, then explicitly Send.
+- Performance: import JSON exported from the existing Real-camera evaluation.
+
+CHECKS ON YOUR LAPTOP
+.venv\Scripts\python.exe -m unittest test_workspace -v
+.venv\Scripts\python.exe check_aura.py
+Optional, only if Node is already installed:
+node test_workspace_js.js
+
+Run check_aura.py --server separately only while the server is already running.
+Do not use --model unless you explicitly want the existing embedding test to
+load/download its model. The workspace update never requires that option.
+
+Before reporting an error, paste its CMD text. Missing screenshot path messages
+are not screenshots and cannot be visually inspected.
+
+CONFIGURATION NOTES
+- API key remains in the existing server session. Never paste it into source or
+  a quiz, file, screenshot or task. No key is bundled in this archive.
+- Workspace data: brain_data/workspace.db; existing documents and chat DBs are
+  separate. Files and patch effects are confined by the file tools, but manually
+  reviewed test code has the account permissions explained above.
+- No GPU, motors, depth camera or physical robot is required or controlled.
+- The body/organ services remain software analogies, not biological organs,
+  feelings, consciousness, universal knowledge or autonomous physical repair.
+
+PRIMARY API REFERENCES (checked while building)
+https://console.groq.com/docs/vision
+https://docs.ollama.com/api/chat
+https://learn.microsoft.com/en-us/dotnet/api/system.speech.synthesis.speechsynthesizer
+https://learn.microsoft.com/en-us/dotnet/api/system.speech.synthesis.visemereachedeventargs.audioposition
+The vision model defaults to qwen/qwen3.8-27b, documented at build time. Model
+availability and your account access can change; the UI field is editable.

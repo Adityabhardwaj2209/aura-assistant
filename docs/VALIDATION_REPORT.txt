@@ -1,0 +1,24 @@
+AURA Workspace — validation on Linux/Python 3.12 and Node 24
+
+PASSED
+- 54 new Python fixture tests: persistent memory, restart recovery, bounded plans,
+  local adapter behavior, auth coverage, document citations, quiz grading, file
+  traversal protection, exact patch rollback and real reviewed subprocess tests.
+- 11 new JS fixture/static checks: UI bindings, text-only rendering, speech Stop
+  generation guard, procedural joint hierarchy, finite motion, visemes, disposal.
+- Existing Python suite: 140 checks + 21 core checks passed; 2 optional checks
+  skipped (real embedding-model inference and an already-running live server).
+- Existing JS: 10 body + 11 perception + 26 evaluation fixture checks passed.
+- Installer integration fixtures: staged installation, repeated installation with
+  zero changes, unsupported-source refusal, forced write failure with full rollback.
+- Python parsing and JS syntax checks passed.
+
+NOT INDEPENDENTLY VERIFIED HERE
+Windows/Python 3.14 runtime; actual PowerShell/System.Speech viseme output; Windows
+app launches; actual Groq/model-account requests; actual installed Ollama model;
+WebGL/Three.js/browser layout and audio autoplay; real camera/evaluation accuracy.
+These need the manual laptop walkthrough. Fixtures do not establish real-world
+accuracy, hardware capability, secure arbitrary-code isolation or human likeness.
+
+No packages/models were installed on the user's laptop. No physical hardware
+commands are added. No API key or user database is included in this archive.

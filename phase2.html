@@ -1,0 +1,85 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AURA Live</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#101023;color:#eef1ff;font:15px system-ui}main{display:grid;grid-template-columns:1fr 1fr;height:100dvh}#stage{position:relative;background:radial-gradient(ellipse,#353252,#101023)}canvas{display:block}#badge{position:absolute;top:20px;left:20px}section{padding:22px;display:flex;flex-direction:column;min-height:0;background:#18182bea}h1{margin:0 0 10px}input,select,button{background:#272740;color:#fff;border:1px solid #555573;border-radius:8px;padding:10px;max-width:100%}button{cursor:pointer}button:disabled{opacity:.45}label{display:inline-block;margin:5px 0}#log{overflow:auto;flex:1;min-height:100px;margin:12px 0}.msg{padding:12px;border-radius:12px;background:#292943;white-space:pre-wrap;margin-bottom:10px}.user{background:#34305d}#notice{color:#ffdf91;min-height:24px}.row{display:flex;gap:8px;flex-wrap:wrap}#text{flex:1;min-width:100px}details{margin:8px 0}small{color:#b9bad0}@media(max-width:750px){main{grid-template-columns:1fr;height:auto}#stage{height:45dvh}section{height:75dvh}}
+</style><main><div id="stage"><div id="badge">AURA · loading avatar</div></div><section><h1>AURA · Brain + Web</h1><a href="/body" target="_top" style="color:#9de4dc;margin-bottom:8px">Open virtual Body + Organs Lab</a><a href="/brain" style="color:#a9ddff;margin-bottom:10px">Open knowledge library</a><details open><summary>Settings</summary><div class="row"><input id="key" type="password" placeholder="Groq API key" autocomplete="off"><input id="model" value="openai/gpt-oss-20b"><button id="save">Save settings</button></div><label>Windows voice <select id="voice"><option value="">Default</option></select></label><div><label><input id="auto" type="checkbox" checked> Speak replies</label> <label><input id="barge" type="checkbox" checked> Voice interruption</label></div><small>Headphones help prevent AURA hearing her own voice. Speech starts after each complete reply.</small></details><div class="row"><button id="start">Start live voice</button><button id="end">End live voice</button><button id="stop">Stop reply</button><button id="full">Fullscreen</button></div><div id="connection" role="status" style="padding:10px;border:1px solid #555573;border-radius:8px;margin-top:10px">Checking server…</div><button id="reconnect" type="button" style="align-self:flex-start;margin-top:8px">Reconnect / refresh session</button><div id="notice" role="status">Enter your key, save settings, then start.</div><details><summary>Avatar & microphone calibration</summary><label>Jaw axis <select id="axis"><option>X</option><option>Y</option><option>Z</option></select></label> <label>Direction <select id="sign"><option value="1">+</option><option value="-1">−</option></select></label> <label>Opening degrees <input id="angle" type="number" min="0" max="20" value="4" style="width:65px"></label><label>Mic threshold <input id="threshold" type="range" min="0.006" max="0.08" step="0.002" value="0.018"></label><small>Lower threshold for a quiet voice. Rotate avatar by dragging; scroll to zoom. Jaw movement follows audio volume, not individual phonemes.</small></details><div id="route_label" role="status" style="color:#a9ddff;margin-top:8px">Tool: ready</div><div id="log"></div><form id="form" class="row"><input id="text" placeholder="Ask AURA — tools are selected automatically" maxlength="6000"><button>Send</button></form></section></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script type="module">
+const $=id=>document.getElementById(id), headers={'X-Aura-Token':'__TOKEN__'};
+let micGeneration=0,live=false,configured=false,mode='idle',epoch=0,controller=null,ctx=null,source=null,analyser=null,mic=null,worklet=null,micNode=null,mute=null,jaw=null,jawBase=null,level=0;
+let pre=[],record=[],recording=false,quiet=0,total=0,bargeSamples=0,cooldown=0;
+function notice(t){$('notice').textContent=t}function state(t){mode=t;$('badge').textContent='AURA · '+t}
+function bubble(role,text){const e=document.createElement('div');e.className='msg '+role;e.textContent=(role==='user'?'You: ':'AURA: ')+text;$('log').append(e);$('log').scrollTop=$('log').scrollHeight;return e}
+function connection(label,ok=false){$('connection').textContent=label;$('connection').style.borderColor=ok?'#75d3b1':'#e5a46f'}
+async function api(url,opts={}){
+ let r;
+ try{r=await fetch(url,{...opts,cache:'no-store',headers:{...headers,...opts.headers}})}
+ catch(e){
+  if(e.name==='AbortError')throw e;
+  connection('Server unreachable • '+location.origin);
+  throw Error('Cannot reach AURA at '+location.origin+' for '+url+'. Keep run_aura.py running in CMD. If it is running, check browser Console/Network for a blocked request.');
+ }
+ if(!r.ok){
+  let d;try{d=await r.json()}catch{}
+  if(r.status===403){configured=false;connection('Session expired or request rejected. Click Reconnect.');throw Error('Session rejected (403). Click Reconnect, then save your settings again.');}
+  throw Error(d?.detail||url+' failed: HTTP '+r.status);
+ }
+ connection('Connected • '+location.origin,true);return r;
+}
+$('reconnect').onclick=()=>location.reload();
+let checking=false;
+async function checkConnection(){
+ if(checking)return;checking=true;
+ const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),4000);
+ try{
+  const r=await fetch('/api/health',{cache:'no-store',signal:abort.signal});
+  if(!r.ok)throw Error('HTTP '+r.status);
+  const h=await r.json();if(h.version!=='aura-connection-fix-1')throw Error('Different server');
+  connection('Connected • Brain + Web • '+location.origin,true);
+ }catch(e){connection('Server health unavailable • '+location.origin+' • Keep run_aura.py open.');}
+ finally{clearTimeout(timer);checking=false;}
+}
+if(location.protocol==='file:'){connection('Open http://127.0.0.1:8511 using run_aura.py; do not open this HTML file directly.');}
+else{checkConnection();setInterval(checkConnection,10000);}
+
+function resetRecording(){pre=[];record=[];recording=false;quiet=0;total=0;bargeSamples=0}
+function stopReply(){epoch++;controller?.abort();controller=null;if(source){try{source.stop()}catch{}source=null}level=0;resetRecording();cooldown=performance.now()+350;state(live?'listening':'idle')}
+$('stop').onclick=()=>{stopReply();notice('Stopped. Ready for your next message.')};
+async function audioContext(){if(!ctx){ctx=new AudioContext();analyser=ctx.createAnalyser();analyser.fftSize=512;analyser.connect(ctx.destination)}await ctx.resume();return ctx}
+async function speak(id,n){await audioContext();const r=await api('/api/speech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,voice:$('voice').value}),signal:controller.signal});const bytes=await r.arrayBuffer();if(n!==epoch)return;const buf=await ctx.decodeAudioData(bytes);if(n!==epoch)return;source=ctx.createBufferSource();source.buffer=buf;source.connect(analyser);state('speaking');notice('AURA speaking. You can interrupt or click Stop.');source.onended=()=>{if(n===epoch){source=null;level=0;cooldown=performance.now()+400;resetRecording();state(live?'listening':'idle');notice(live?'Listening…':'Ready.')}};source.start()}
+async function turn(form){if(!configured){notice('Save your Groq settings first.');return}stopReply();const n=epoch;controller=new AbortController();state('thinking');notice('AURA is processing…');let answer=null,done=null;
+try{const r=await api('/api/turn',{method:'POST',body:form,signal:controller.signal});const reader=r.body.getReader(),decoder=new TextDecoder();let pending='';while(true){const {value,done:ended}=await reader.read();pending+=decoder.decode(value||new Uint8Array(),{stream:!ended});let lines=pending.split('\n');pending=lines.pop();for(const line of lines){if(!line.trim())continue;const p=JSON.parse(line);if(n!==epoch)return;if(p.type==='route'){$('route_label').textContent='Heart: '+(p.emotion||'calm')+' • Tool: '+p.name+(p.query?' • Search/request: '+p.query:'');notice('AURA using '+p.name+'…')}if(p.type==='user')bubble('user',p.text);if(p.type==='token'){if(!answer)answer=bubble('assistant','');answer.textContent+=p.text;$('log').scrollTop=$('log').scrollHeight}if(p.type==='error')throw Error(p.message);if(p.type==='done')done=p}if(ended)break}if(n!==epoch)return;if(!done)throw Error('Reply interrupted before completion. Retry.');if($('auto').checked){notice('Preparing Windows voice…');await speak(done.id,n)}else{state(live?'listening':'idle');notice(live?'Listening…':'Reply saved.')}}catch(e){if(n===epoch){state(live?'listening':'idle');notice(e.name==='AbortError'?'Stopped':e.message);if(answer&&!done)answer.textContent+='\n[Incomplete reply — not saved]'}}}
+$('form').onsubmit=async e=>{e.preventDefault();const text=$('text').value.trim();if(!text)return;await audioContext();$('text').value='';const f=new FormData();f.append('text',text);turn(f)};
+$('save').onclick=async()=>{try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:$('key').value,model:$('model').value})});configured=true;$('key').value='';notice('Settings saved for this server session.')}catch(e){notice(e.message)}};
+function wav(chunks){const count=chunks.reduce((s,c)=>s+c.length,0),b=new ArrayBuffer(44+count*2),v=new DataView(b);let o=0;const str=t=>{for(const c of t)v.setUint8(o++,c.charCodeAt(0))};str('RIFF');v.setUint32(o,36+count*2,true);o+=4;str('WAVEfmt ');v.setUint32(o,16,true);o+=4;v.setUint16(o,1,true);o+=2;v.setUint16(o,1,true);o+=2;v.setUint32(o,ctx.sampleRate,true);o+=4;v.setUint32(o,ctx.sampleRate*2,true);o+=4;v.setUint16(o,2,true);o+=2;v.setUint16(o,16,true);o+=2;str('data');v.setUint32(o,count*2,true);o+=4;for(const c of chunks)for(const x of c){v.setInt16(o,Math.max(-1,Math.min(1,x))*(x<0?32768:32767),true);o+=2}return new Blob([b],{type:'audio/wav'})}
+function capture(chunk){if(!live||performance.now()<cooldown)return;const duration=chunk.length/ctx.sampleRate;let sum=0;for(const x of chunk)sum+=x*x;const rms=Math.sqrt(sum/chunk.length),threshold=Number($('threshold').value);
+if(mode==='speaking'){if($('barge').checked&&rms>threshold*1.5){bargeSamples+=duration;if(bargeSamples>.25){stopReply();cooldown=0;notice('Interrupted. Continue speaking…');pre=[chunk]}}else bargeSamples=0;return}
+if(mode!=='listening')return;pre.push(chunk);while(pre.reduce((s,c)=>s+c.length,0)>ctx.sampleRate*.3)pre.shift();if(!recording){if(rms<threshold)return;recording=true;record=pre.slice();pre=[];total=record.reduce((s,c)=>s+c.length,0)/ctx.sampleRate}else{record.push(chunk);total+=duration}quiet=rms<threshold?quiet+duration:0;
+if(quiet>.9||total>=30){const chunks=record.slice(),speech=total-quiet;resetRecording();if(speech<.2)return;const f=new FormData();f.append('audio',wav(chunks),'recording.wav');turn(f)}}
+async function endLive(){micGeneration++;live=false;stopReply();mic?.getTracks().forEach(t=>t.stop());worklet?.disconnect();micNode?.disconnect();mute?.disconnect();mic=null;worklet=null;micNode=null;mute=null;state('idle')}
+$('end').onclick=async()=>{await endLive();notice('Microphone stopped.')};
+$('start').onclick=async()=>{if(live)return;if(mode==='thinking'||mode==='speaking'){notice('Stop the current reply before starting live voice.');return}if(!configured){notice('Save your Groq key first.');return}$('start').disabled=true;const generation=++micGeneration;try{await audioContext();mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});if(generation!==micGeneration){mic.getTracks().forEach(t=>t.stop());mic=null;return}await ctx.audioWorklet.addModule('/worklet.js');if(generation!==micGeneration){mic?.getTracks().forEach(t=>t.stop());mic=null;return}micNode=ctx.createMediaStreamSource(mic);worklet=new AudioWorkletNode(ctx,'aura-capture');mute=ctx.createGain();mute.gain.value=0;micNode.connect(worklet);worklet.connect(mute);mute.connect(ctx.destination);worklet.port.onmessage=e=>capture(e.data);live=true;resetRecording();state('listening');notice('Listening… Speak, then pause.')}catch(e){await endLive();notice('Microphone failed: '+e.message)}finally{$('start').disabled=false}};
+$('full').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(e=>notice(e.message))};
+window.addEventListener('pagehide',()=>{mic?.getTracks().forEach(t=>t.stop());controller?.abort();try{source?.stop()}catch{}});
+async function loadAvatar(){
+ try{
+  const THREE=await import('three');
+  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
+  const {OrbitControls}=await import('three/addons/controls/OrbitControls.js');
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.01,100),renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));$('stage').append(renderer.domElement);scene.add(new THREE.HemisphereLight(0xffffff,0x777799,2));const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(2,3,4);scene.add(light);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+new GLTFLoader().load('/avatar',g=>{const avatar=g.scene;scene.add(avatar);const box=new THREE.Box3().setFromObject(avatar),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());controls.target.copy(center);camera.position.set(center.x,center.y,center.z+Math.max(size.y,size.x)*2);camera.lookAt(center);avatar.traverse(o=>{if(o.isBone&&o.name.trim().toLowerCase()==='jaw'){jaw=o;jawBase=o.quaternion.clone()}});state('idle');if(!jaw)notice('Avatar loaded, but no Jaw bone found. Voice still works.')},undefined,()=>notice('Avatar failed to load. Keep selected_avatar.glb beside phase2.py; internet is needed for Three.js.'));
+const data=new Float32Array(512);function frame(){requestAnimationFrame(frame);const w=$('stage').clientWidth,h=$('stage').clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();if(source&&analyser){analyser.getFloatTimeDomainData(data);level=Math.min(1,Math.sqrt(data.reduce((s,x)=>s+x*x,0)/data.length)*8)}else level*=.65;if(jaw){const axis=new THREE.Vector3($('axis').value==='X'?1:0,$('axis').value==='Y'?1:0,$('axis').value==='Z'?1:0);const rotation=new THREE.Quaternion().setFromAxisAngle(axis,THREE.MathUtils.degToRad(Math.max(0,Math.min(20,Number($('angle').value)||0)))*Number($('sign').value)*level);jaw.quaternion.copy(jawBase).multiply(rotation)}controls.update();renderer.render(scene,camera)}frame();
+ }catch(e){$('badge').textContent='Avatar unavailable • chat/voice still usable';console.warn('AURA avatar loading failed:',e);}
+}
+if(!new URLSearchParams(location.search).has('body_embedded'))loadAvatar();
+
+try{const h=await(await api('/api/history')).json();configured=h.configured;for(const m of h.messages)bubble(m.role,m.content);const v=await(await api('/api/voices')).json();for(const name of v.voices){const o=document.createElement('option');o.value=name;o.textContent=name;$('voice').append(o)}if(v.warning)notice(v.warning)}catch(e){notice(e.message)}
+
+if(new URLSearchParams(location.search).has('body_embedded')){
+ document.getElementById('stage').style.display='none';
+ document.querySelector('main').style.gridTemplateColumns='1fr';
+ document.querySelector('section').style.height='100dvh';
+ const bodyAudioData=new Float32Array(512);
+ setInterval(()=>{let rms=0;if(source&&analyser){analyser.getFloatTimeDomainData(bodyAudioData);for(const v of bodyAudioData)rms+=v*v;rms=Math.min(1,Math.sqrt(rms/bodyAudioData.length)*8)}parent.postMessage({type:'aura-body-voice',level:rms},location.origin)},70);
+ window.addEventListener('message',event=>{if(event.origin===location.origin&&event.source===parent&&event.data?.type==='aura-body-stop-speech'){stopReply();notice('Stopped by Body Lab.')}});
+ document.getElementById('stop').addEventListener('click',()=>parent.postMessage({type:'aura-body-stop'},location.origin));
+}
+</script></html>

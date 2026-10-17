@@ -1,0 +1,1 @@
+AURA is a personal AI assistant with voice conversations, persistent memory, document research, task planning, learning tools, controlled desktop actions, and an animated 3D avatar. Built with Python, FastAPI, and JavaScript.

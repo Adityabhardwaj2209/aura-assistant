@@ -1,0 +1,41 @@
+# Credentials
+.env
+.env.*
+!.env.example
+*credentials*
+*secret*
+*.pem
+*.key
+# Local state and personal files
+brain_data/
+workspace_files/
+upload/
+uploads/
+*.db
+*.db-*
+*.sqlite*
+*.wav
+*.mp3
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.glb
+*.zip
+*_backups/
+selfcare_backups/
+*_before_*
+*_report.txt
+*.workspace_tmp
+*.aura_tmp_*
+# Python / editor / OS
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
